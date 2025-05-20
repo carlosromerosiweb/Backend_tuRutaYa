@@ -9,7 +9,8 @@
     "start": "node dist/index.js",
     "lint": "eslint . --ext .ts",
     "test": "jest",
-    "create-table": "ts-node src/utils/createUsersTable.ts"
+    "create-table": "ts-node src/utils/createUsersTable.ts",
+    "migrate-notifications": "ts-node src/utils/migrateNotificationsTable.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.5",

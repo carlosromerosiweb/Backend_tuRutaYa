@@ -7,6 +7,7 @@ import { pingRouter } from './routes/ping.routes';
 import leadsRouter from './routes/leads';
 import teamsRouter from './routes/teams';
 import checkinsRouter from './routes/checkins';
+import notificationsRouter from './routes/notifications';
 
 dotenv.config();
 
@@ -24,6 +25,7 @@ app.use('/api/users', usersModule.router);
 app.use('/api', leadsRouter);
 app.use('/api/teams', teamsRouter);
 app.use('/api/checkins', checkinsRouter);
+app.use('/api/notifications', notificationsRouter);
 
 // Error handling middleware
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
