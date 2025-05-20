@@ -1,5 +1,11 @@
 import { Router, Request, Response } from 'express';
 import { supabase } from '../utils/supabaseClient';
+import axios from 'axios';
+import { OptimizedRouteResponse, GoogleDirectionsResponse } from '../types/routes';
+import { metersToKm, secondsToMinutes, formatWaypoint, extractCoordinates } from '../utils/routeUtils';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const router = Router();
 
@@ -375,6 +381,290 @@ router.post('/:teamId/leads', async (req: Request, res: Response) => {
     console.error('Error al asignar leads al equipo:', error);
     return res.status(500).json({ 
       error: 'Error al asignar leads al equipo',
+      details: error instanceof Error ? error.message : 'Error desconocido'
+    });
+  }
+});
+
+/**
+ * Obtiene la ruta optimizada para visitar todos los leads asignados a un equipo
+ * @route GET /api/teams/:teamId/optimized-route
+ * @param {string} teamId - ID del equipo
+ * @query {string} [mode=driving] - Modo de transporte ('driving' o 'walking')
+ */
+router.get('/:teamId/optimized-route', async (req: Request, res: Response) => {
+  try {
+    const { teamId } = req.params;
+    const { mode = 'driving' } = req.query;
+
+    // Validar el modo de transporte
+    if (mode !== 'driving' && mode !== 'walking') {
+      return res.status(400).json({
+        error: 'Modo de transporte inválido. Debe ser "driving" o "walking"'
+      });
+    }
+
+    console.log(`\n=== Calculando ruta optimizada para equipo ${teamId} (${mode}) ===`);
+
+    // 1. Obtener los leads asignados al equipo con sus coordenadas
+    const { data: leads, error: leadsError } = await supabase
+      .from('leads')
+      .select('id, name, address, location')
+      .eq('assigned_team_id', teamId)
+      .not('location', 'is', null);
+
+    if (leadsError) {
+      throw leadsError;
+    }
+
+    if (!leads || leads.length === 0) {
+      return res.status(404).json({
+        error: 'No se encontraron leads con ubicación asignados a este equipo'
+      });
+    }
+
+    console.log(`\nLeads encontrados: ${leads.length}`);
+    leads.forEach((lead, index) => {
+      console.log(`${index + 1}. ${lead.name} (${lead.address})`);
+    });
+
+    // 2. Preparar los waypoints para la API de Google Directions
+    const waypoints = leads.map(lead => {
+      const coords = extractCoordinates(lead.location);
+      console.log(`Coordenadas para ${lead.name}:`, coords);
+      return formatWaypoint(coords.lat, coords.lng);
+    });
+
+    // 3. Llamar a la API de Google Directions
+    const origin = 'Plaza España, Vigo, Spain';
+    console.log('\nLlamando a Google Directions API:');
+    console.log('Origen/Destino:', origin);
+    console.log('Modo de transporte:', mode);
+    console.log('Número de waypoints:', waypoints.length);
+
+    // Construir la URL con los parámetros
+    const params = new URLSearchParams({
+      origin,
+      destination: origin,
+      waypoints: `optimize:true|${waypoints.join('|')}`,
+      mode: mode as string,
+      key: process.env.GOOGLE_MAPS_API_KEY || '',
+    });
+
+    console.log('URL de la API:', `https://maps.googleapis.com/maps/api/directions/json?${params.toString()}`);
+
+    const response = await axios.get<GoogleDirectionsResponse>(
+      'https://maps.googleapis.com/maps/api/directions/json',
+      {
+        params,
+      }
+    );
+
+    console.log('\nRespuesta de Google Directions API:');
+    console.log('Status:', response.data.status);
+    if (response.data.status !== 'OK') {
+      console.error('Error completo:', response.data);
+      throw new Error(`Error en la API de Google Directions: ${response.data.status}`);
+    }
+
+    const route = response.data.routes[0];
+    const waypointOrder = route.waypoint_order;
+
+    // 4. Procesar la respuesta
+    const orderedLeads = waypointOrder.map(index => {
+      const lead = leads[index];
+      const coords = extractCoordinates(lead.location);
+      return {
+        id: lead.id,
+        name: lead.name,
+        address: lead.address,
+        lat: coords.lat,
+        lng: coords.lng
+      };
+    });
+
+    // 5. Calcular segmentos
+    const segments = route.legs.map((leg, index) => {
+      const fromLead = index === 0 ? 'Plaza España' : orderedLeads[index - 1].name;
+      const toLead = index === route.legs.length - 1 ? 'Plaza España' : orderedLeads[index].name;
+
+      return {
+        from_lead_name: fromLead,
+        to_lead_name: toLead,
+        distance_km: metersToKm(leg.distance.value),
+        duration_min: secondsToMinutes(leg.duration.value)
+      };
+    });
+
+    // 6. Calcular totales
+    const totalDistance = route.legs.reduce((sum, leg) => sum + leg.distance.value, 0);
+    const totalDuration = route.legs.reduce((sum, leg) => sum + leg.duration.value, 0);
+
+    // Mostrar la ruta optimizada
+    console.log('\n=== Ruta Optimizada ===');
+    console.log('Modo de transporte:', mode);
+    console.log('Plaza España');
+    orderedLeads.forEach((lead, index) => {
+      console.log(`  ↓ ${segments[index].distance_km}km (${segments[index].duration_min}min)`);
+      console.log(`${lead.name}`);
+    });
+    console.log(`  ↓ ${segments[segments.length - 1].distance_km}km (${segments[segments.length - 1].duration_min}min)`);
+    console.log('Plaza España');
+    console.log(`\nDistancia total: ${metersToKm(totalDistance)}km`);
+    console.log(`Duración total: ${secondsToMinutes(totalDuration)}min`);
+
+    const result: OptimizedRouteResponse = {
+      team_id: teamId,
+      transport_mode: mode as 'driving' | 'walking',
+      total_distance_km: metersToKm(totalDistance),
+      total_duration_min: secondsToMinutes(totalDuration),
+      waypoint_order: waypointOrder,
+      ordered_leads: orderedLeads,
+      segments,
+      polyline: route.overview_polyline.points
+    };
+
+    return res.json(result);
+  } catch (error) {
+    console.error('\nError en optimized-route:', error);
+    return res.status(500).json({
+      error: 'Error al calcular la ruta optimizada',
+      details: error instanceof Error ? error.message : 'Error desconocido'
+    });
+  }
+});
+
+/**
+ * Obtiene la ruta optimizada para visitar todos los leads asignados a un equipo a pie
+ * @route GET /api/teams/:teamId/walking-route
+ */
+router.get('/:teamId/walking-route', async (req: Request, res: Response) => {
+  try {
+    const { teamId } = req.params;
+    console.log(`\n=== Calculando ruta a pie para equipo ${teamId} ===`);
+
+    // 1. Obtener los leads asignados al equipo con sus coordenadas
+    const { data: leads, error: leadsError } = await supabase
+      .from('leads')
+      .select('id, name, address, location')
+      .eq('assigned_team_id', teamId)
+      .not('location', 'is', null);
+
+    if (leadsError) {
+      throw leadsError;
+    }
+
+    if (!leads || leads.length === 0) {
+      return res.status(404).json({
+        error: 'No se encontraron leads con ubicación asignados a este equipo'
+      });
+    }
+
+    console.log(`\nLeads encontrados: ${leads.length}`);
+    leads.forEach((lead, index) => {
+      console.log(`${index + 1}. ${lead.name} (${lead.address})`);
+    });
+
+    // 2. Preparar los waypoints para la API de Google Directions
+    const waypoints = leads.map(lead => {
+      const coords = extractCoordinates(lead.location);
+      console.log(`Coordenadas para ${lead.name}:`, coords);
+      return formatWaypoint(coords.lat, coords.lng);
+    });
+
+    // 3. Llamar a la API de Google Directions
+    const origin = 'Plaza España, Vigo, Spain';
+    console.log('\nLlamando a Google Directions API:');
+    console.log('Origen/Destino:', origin);
+    console.log('Modo: walking');
+    console.log('Número de waypoints:', waypoints.length);
+
+    // Construir la URL con los parámetros
+    const params = new URLSearchParams({
+      origin,
+      destination: origin,
+      waypoints: `optimize:true|${waypoints.join('|')}`,
+      mode: 'walking',
+      key: process.env.GOOGLE_MAPS_API_KEY || '',
+    });
+
+    console.log('URL de la API:', `https://maps.googleapis.com/maps/api/directions/json?${params.toString()}`);
+
+    const response = await axios.get<GoogleDirectionsResponse>(
+      'https://maps.googleapis.com/maps/api/directions/json',
+      {
+        params,
+      }
+    );
+
+    console.log('\nRespuesta de Google Directions API:');
+    console.log('Status:', response.data.status);
+    if (response.data.status !== 'OK') {
+      console.error('Error completo:', response.data);
+      throw new Error(`Error en la API de Google Directions: ${response.data.status}`);
+    }
+
+    const route = response.data.routes[0];
+    const waypointOrder = route.waypoint_order;
+
+    // 4. Procesar la respuesta
+    const orderedLeads = waypointOrder.map(index => {
+      const lead = leads[index];
+      const coords = extractCoordinates(lead.location);
+      return {
+        id: lead.id,
+        name: lead.name,
+        address: lead.address,
+        lat: coords.lat,
+        lng: coords.lng
+      };
+    });
+
+    // 5. Calcular segmentos
+    const segments = route.legs.map((leg, index) => {
+      const fromLead = index === 0 ? 'Plaza España' : orderedLeads[index - 1].name;
+      const toLead = index === route.legs.length - 1 ? 'Plaza España' : orderedLeads[index].name;
+
+      return {
+        from_lead_name: fromLead,
+        to_lead_name: toLead,
+        distance_km: metersToKm(leg.distance.value),
+        duration_min: secondsToMinutes(leg.duration.value)
+      };
+    });
+
+    // 6. Calcular totales
+    const totalDistance = route.legs.reduce((sum, leg) => sum + leg.distance.value, 0);
+    const totalDuration = route.legs.reduce((sum, leg) => sum + leg.duration.value, 0);
+
+    // Mostrar la ruta optimizada
+    console.log('\n=== Ruta Optimizada a Pie ===');
+    console.log('Plaza España');
+    orderedLeads.forEach((lead, index) => {
+      console.log(`  ↓ ${segments[index].distance_km}km (${segments[index].duration_min}min)`);
+      console.log(`${lead.name}`);
+    });
+    console.log(`  ↓ ${segments[segments.length - 1].distance_km}km (${segments[segments.length - 1].duration_min}min)`);
+    console.log('Plaza España');
+    console.log(`\nDistancia total: ${metersToKm(totalDistance)}km`);
+    console.log(`Duración total: ${secondsToMinutes(totalDuration)}min`);
+
+    const result: OptimizedRouteResponse = {
+      team_id: teamId,
+      transport_mode: 'walking',
+      total_distance_km: metersToKm(totalDistance),
+      total_duration_min: secondsToMinutes(totalDuration),
+      waypoint_order: waypointOrder,
+      ordered_leads: orderedLeads,
+      segments,
+      polyline: route.overview_polyline.points
+    };
+
+    return res.json(result);
+  } catch (error) {
+    console.error('\nError en walking-route:', error);
+    return res.status(500).json({
+      error: 'Error al calcular la ruta a pie',
       details: error instanceof Error ? error.message : 'Error desconocido'
     });
   }
