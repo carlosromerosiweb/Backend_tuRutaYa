@@ -26,7 +26,7 @@ router.post('/', async (req: Request, res: Response) => {
       if (existingUsers.length !== user_ids.length) {
         return res.status(400).json({ 
           error: 'Algunos usuarios no existen',
-          invalid_ids: user_ids.filter((id: string) => !existingUsers.find(u => u.id === id))
+          invalid_ids: user_ids.filter((id: number) => !existingUsers.find(u => u.id === id))
         });
       }
     }
@@ -44,10 +44,11 @@ router.post('/', async (req: Request, res: Response) => {
 
     // Asociar usuarios al equipo si se proporcionaron
     if (user_ids && user_ids.length > 0) {
-      const teamMembers = user_ids.map((user_id: string) => ({
+      const teamMembers = user_ids.map((user_id: number) => ({
         team_id: team.id,
         user_id,
-        created_at: new Date()
+        role_in_team: 'member', // Rol por defecto
+        joined_at: new Date()
       }));
 
       const { error: membersError } = await supabase
@@ -72,7 +73,9 @@ router.post('/', async (req: Request, res: Response) => {
           id,
           name,
           email
-        )
+        ),
+        role_in_team,
+        joined_at
       `)
       .eq('team_id', team.id);
 
@@ -84,7 +87,11 @@ router.post('/', async (req: Request, res: Response) => {
       team: {
         id: team.id,
         name: team.name,
-        members: members.map(m => m.user)
+        members: members.map(m => ({
+          ...m.user,
+          role_in_team: m.role_in_team,
+          joined_at: m.joined_at
+        }))
       }
     });
 
@@ -101,7 +108,7 @@ router.post('/', async (req: Request, res: Response) => {
 router.post('/:teamId/members', async (req: Request, res: Response) => {
   try {
     const { teamId } = req.params;
-    const { user_ids } = req.body;
+    const { user_ids, role_in_team = 'member' } = req.body;
 
     if (!user_ids || !Array.isArray(user_ids) || user_ids.length === 0) {
       return res.status(400).json({ error: 'Se requiere al menos un ID de usuario' });
@@ -131,7 +138,7 @@ router.post('/:teamId/members', async (req: Request, res: Response) => {
     if (existingUsers.length !== user_ids.length) {
       return res.status(400).json({ 
         error: 'Algunos usuarios no existen',
-        invalid_ids: user_ids.filter((id: string) => !existingUsers.find(u => u.id === id))
+        invalid_ids: user_ids.filter((id: number) => !existingUsers.find(u => u.id === id))
       });
     }
 
@@ -154,10 +161,11 @@ router.post('/:teamId/members', async (req: Request, res: Response) => {
     }
 
     // Insertar nuevos miembros
-    const teamMembers = newUserIds.map((user_id: string) => ({
+    const teamMembers = newUserIds.map((user_id: number) => ({
       team_id: teamId,
       user_id,
-      created_at: new Date()
+      role_in_team,
+      joined_at: new Date()
     }));
 
     const { error: insertError } = await supabase
@@ -176,7 +184,9 @@ router.post('/:teamId/members', async (req: Request, res: Response) => {
           id,
           name,
           email
-        )
+        ),
+        role_in_team,
+        joined_at
       `)
       .eq('team_id', teamId);
 
@@ -186,7 +196,11 @@ router.post('/:teamId/members', async (req: Request, res: Response) => {
 
     return res.status(200).json({
       team_id: teamId,
-      members: updatedMembers.map(m => m.user)
+      members: updatedMembers.map(m => ({
+        ...m.user,
+        role_in_team: m.role_in_team,
+        joined_at: m.joined_at
+      }))
     });
 
   } catch (error) {
