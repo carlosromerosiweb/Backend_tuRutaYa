@@ -1,5 +1,6 @@
 #   CREAR TEAM
 ##      user_ids es opcional. si no se pone nada, se creará el equipo sin usuarios
+POST /api/teams
     Body
         {
             "name": "Nombre del Equipo 3",
@@ -25,6 +26,7 @@
 
 #   AÑADIR MIEMBROS A UN TEAM
 ##  role_in_team es opcional. de hecho, dudo bastante que usemos esa propiedad, pero la dejo por si acaso, tú ignorala
+POST /api/teams/:teamId/members
     Body
         {
             "user_ids": [3],
@@ -34,6 +36,46 @@
     Response
         {
             "team_id": "055430b9-b8ea-4476-aae5-102f87b98e4d",
+            "members": [
+                {
+                    "id": 3,
+                    "name": "Oda",
+                    "email": "asd@asd.com",
+                    "role_in_team": "member",
+                    "joined_at": "2025-05-20T10:56:58.198+00:00"
+                }
+            ]
+        }
+
+#   LISTAR TEAMS
+GET /api/teams
+    Response
+        {
+            "teams": [
+                {
+                    "id": "055430b9-b8ea-4476-aae5-102f87b98e4d",
+                    "name": "Nombre del Equipo 3",
+                    "created_at": "2025-05-20T10:44:24.093946+00:00",
+                    "members": [
+                        {
+                            "id": 3,
+                            "name": "Oda",
+                            "email": "asd@asd.com",
+                            "role_in_team": "member",
+                            "joined_at": "2025-05-20T10:56:58.198+00:00"
+                        }
+                    ]
+                }
+            ]
+        }
+
+#   LISTAR TEAM POR TEAMID
+GET /api/teams/:teamId
+    Response
+        {
+            "id": "055430b9-b8ea-4476-aae5-102f87b98e4d",
+            "name": "Nombre del Equipo 3",
+            "created_at": "2025-05-20T10:44:24.093946+00:00",
             "members": [
                 {
                     "id": 3,

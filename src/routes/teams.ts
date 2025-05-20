@@ -12,7 +12,6 @@ router.get('/', async (req: Request, res: Response) => {
         id,
         name,
         created_at,
-        updated_at,
         members:team_members (
           user:users (
             id,
@@ -34,7 +33,6 @@ router.get('/', async (req: Request, res: Response) => {
         id: team.id,
         name: team.name,
         created_at: team.created_at,
-        updated_at: team.updated_at,
         members: team.members.map(m => ({
           ...m.user,
           role_in_team: m.role_in_team,
@@ -63,7 +61,6 @@ router.get('/:teamId', async (req: Request, res: Response) => {
         id,
         name,
         created_at,
-        updated_at,
         members:team_members (
           user:users (
             id,
@@ -88,7 +85,6 @@ router.get('/:teamId', async (req: Request, res: Response) => {
       id: team.id,
       name: team.name,
       created_at: team.created_at,
-      updated_at: team.updated_at,
       members: team.members.map(m => ({
         ...m.user,
         role_in_team: m.role_in_team,
