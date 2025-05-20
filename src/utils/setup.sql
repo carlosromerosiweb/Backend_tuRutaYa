@@ -1,0 +1,36 @@
+-- Crear la tabla users
+CREATE TABLE IF NOT EXISTS users (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    email TEXT NOT NULL UNIQUE,
+    name TEXT,
+    roles TEXT[] DEFAULT '{}',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Crear un índice para búsquedas por email
+CREATE INDEX IF NOT EXISTS users_email_idx ON users(email);
+
+-- Configurar RLS (Row Level Security)
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+
+-- Crear una política que permita acceso de lectura a todos los usuarios autenticados
+CREATE POLICY "Allow authenticated users to read users"
+    ON users
+    FOR SELECT
+    TO authenticated
+    USING (true);
+
+-- Crear una política que permita a los usuarios modificar solo sus propios registros
+CREATE POLICY "Users can update their own records"
+    ON users
+    FOR UPDATE
+    TO authenticated
+    USING (auth.uid() = id);
+
+-- Insertar algunos datos de prueba
+INSERT INTO users (email, name, roles)
+VALUES 
+    ('admin@turutaya.com', 'Administrador', ARRAY['admin']),
+    ('vendedor@turutaya.com', 'Vendedor Ejemplo', ARRAY['vendedor']),
+    ('supervisor@turutaya.com', 'Supervisor Ejemplo', ARRAY['supervisor', 'vendedor'])
+ON CONFLICT (email) DO NOTHING; 
