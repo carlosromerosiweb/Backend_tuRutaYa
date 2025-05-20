@@ -8,7 +8,6 @@
 ## Roles y Permisos
 
 - Roles contemplados: vendedor, supervisor, jefe de equipo, jefe de zona, dirección y posibilidad de un rol regional o superusuario.
-- Un mismo usuario puede tener múltiples roles simultáneamente.
 - Gestión de perfiles: edición de datos personales y de la empresa (nombre, dirección, CIF).
 
 ## Generación y Optimización de Rutas con IA

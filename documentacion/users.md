@@ -43,3 +43,71 @@ POST /auth/login
                 ]
             }
         }
+
+#   OBTENER USUARIOS
+GET /api/users
+    Response
+        [
+            {
+                "id": 4,
+                "email": "sab@sab.com",
+                "name": "Sabela",
+                "roles": [
+                    "vendedor"
+                ],
+                "created_at": "2025-05-20T11:17:57.601852+00:00"
+            },
+            {
+                "id": 3,
+                "email": "asd@asd.com",
+                "name": "Oda",
+                "roles": [
+                    "admin"
+                ],
+                "created_at": "2025-05-20T10:37:59.430156+00:00"
+            },
+            {
+                "id": 2,
+                "email": "hola@hola.com",
+                "name": "kojima",
+                "roles": [
+                    "vendedor"
+                ],
+                "created_at": "2025-05-20T09:23:49.138859+00:00"
+            },
+            {
+                "id": 1,
+                "email": "prueba",
+                "name": "Usuario prueba",
+                "roles": [
+                    "vendedor"
+                ],
+                "created_at": "2025-05-20T08:00:44.208935+00:00"
+            }
+        ]
+
+#   OBTENER USUARIO POR SESIÓN
+GET /api/users/me
+    Response
+        {
+            "id": 2,
+            "email": "hola@hola.com",
+            "name": "kojima",
+            "roles": [
+                "vendedor"
+            ],
+            "created_at": "2025-05-20T09:23:49.138859+00:00"
+        }
+
+#   OBTENER USUARIO POR ID
+GET /api/users/3
+    Response
+        {
+            "id": 3,
+            "email": "asd@asd.com",
+            "name": "Oda",
+            "roles": [
+                "admin"
+            ],
+            "created_at": "2025-05-20T10:37:59.430156+00:00"
+        }
