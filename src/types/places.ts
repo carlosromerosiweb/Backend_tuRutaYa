@@ -57,4 +57,5 @@ export interface Lead {
   opening_hours: string[];
   created_at: Date;
   updated_at: Date;
+  assigned_team_id?: string;
 } 

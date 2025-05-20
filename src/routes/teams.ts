@@ -310,4 +310,74 @@ router.post('/:teamId/members', async (req: Request, res: Response) => {
   }
 });
 
+// Asignar leads a un equipo
+router.post('/:teamId/leads', async (req: Request, res: Response) => {
+  try {
+    const { teamId } = req.params;
+    const { lead_ids } = req.body;
+
+    if (!lead_ids || !Array.isArray(lead_ids) || lead_ids.length === 0) {
+      return res.status(400).json({ error: 'Se requiere al menos un ID de lead' });
+    }
+
+    // Verificar que el equipo existe
+    const { data: team, error: teamError } = await supabase
+      .from('teams')
+      .select('id')
+      .eq('id', teamId)
+      .single();
+
+    if (teamError || !team) {
+      return res.status(404).json({ error: 'Equipo no encontrado' });
+    }
+
+    // Verificar que los leads existan
+    const { data: existingLeads, error: leadsError } = await supabase
+      .from('leads')
+      .select('id')
+      .in('id', lead_ids);
+
+    if (leadsError) {
+      throw leadsError;
+    }
+
+    if (existingLeads.length !== lead_ids.length) {
+      return res.status(400).json({ 
+        error: 'Algunos leads no existen',
+        invalid_ids: lead_ids.filter((id: string) => !existingLeads.find(l => l.id === id))
+      });
+    }
+
+    // Actualizar los leads con el nuevo team_id
+    const { data: updatedLeads, error: updateError } = await supabase
+      .from('leads')
+      .update({ assigned_team_id: teamId })
+      .in('id', lead_ids)
+      .select(`
+        id,
+        name,
+        address,
+        status,
+        assigned_team_id,
+        updated_at
+      `);
+
+    if (updateError) {
+      throw updateError;
+    }
+
+    return res.status(200).json({
+      team_id: teamId,
+      leads: updatedLeads
+    });
+
+  } catch (error) {
+    console.error('Error al asignar leads al equipo:', error);
+    return res.status(500).json({ 
+      error: 'Error al asignar leads al equipo',
+      details: error instanceof Error ? error.message : 'Error desconocido'
+    });
+  }
+});
+
 export default router; 
