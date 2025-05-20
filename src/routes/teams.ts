@@ -3,6 +3,108 @@ import { supabase } from '../utils/supabaseClient';
 
 const router = Router();
 
+// Listar todos los equipos
+router.get('/', async (req: Request, res: Response) => {
+  try {
+    const { data: teams, error } = await supabase
+      .from('teams')
+      .select(`
+        id,
+        name,
+        created_at,
+        updated_at,
+        members:team_members (
+          user:users (
+            id,
+            name,
+            email
+          ),
+          role_in_team,
+          joined_at
+        )
+      `)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      throw error;
+    }
+
+    return res.json({
+      teams: teams.map(team => ({
+        id: team.id,
+        name: team.name,
+        created_at: team.created_at,
+        updated_at: team.updated_at,
+        members: team.members.map(m => ({
+          ...m.user,
+          role_in_team: m.role_in_team,
+          joined_at: m.joined_at
+        }))
+      }))
+    });
+
+  } catch (error) {
+    console.error('Error al listar equipos:', error);
+    return res.status(500).json({ 
+      error: 'Error al listar equipos',
+      details: error instanceof Error ? error.message : 'Error desconocido'
+    });
+  }
+});
+
+// Obtener un equipo específico
+router.get('/:teamId', async (req: Request, res: Response) => {
+  try {
+    const { teamId } = req.params;
+
+    const { data: team, error } = await supabase
+      .from('teams')
+      .select(`
+        id,
+        name,
+        created_at,
+        updated_at,
+        members:team_members (
+          user:users (
+            id,
+            name,
+            email
+          ),
+          role_in_team,
+          joined_at
+        )
+      `)
+      .eq('id', teamId)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return res.status(404).json({ error: 'Equipo no encontrado' });
+      }
+      throw error;
+    }
+
+    return res.json({
+      id: team.id,
+      name: team.name,
+      created_at: team.created_at,
+      updated_at: team.updated_at,
+      members: team.members.map(m => ({
+        ...m.user,
+        role_in_team: m.role_in_team,
+        joined_at: m.joined_at
+      }))
+    });
+
+  } catch (error) {
+    console.error('Error al obtener equipo:', error);
+    return res.status(500).json({ 
+      error: 'Error al obtener equipo',
+      details: error instanceof Error ? error.message : 'Error desconocido'
+    });
+  }
+});
+
 // Crear un nuevo equipo
 router.post('/', async (req: Request, res: Response) => {
   try {
