@@ -40,4 +40,22 @@ export interface GoogleDirectionsResponse {
     };
     waypoint_order: number[];
   }[];
+}
+
+export interface DistributeRouteRequest {
+  user_ids?: number[];
+  num_commercials?: number;
+}
+
+export interface DistributedRouteSegment {
+  user_id: number;
+  total_duration_min: number;
+  total_distance_km: number;
+  leads: OptimizedRouteResponse['ordered_leads'];
+  segments: OptimizedRouteResponse['segments'];
+}
+
+export interface DistributeRouteResponse {
+  team_id: string;
+  distributed_routes: DistributedRouteSegment[];
 } 

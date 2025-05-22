@@ -4,6 +4,7 @@ import axios from 'axios';
 import { OptimizedRouteResponse, GoogleDirectionsResponse } from '../types/routes';
 import { metersToKm, secondsToMinutes, formatWaypoint, extractCoordinates } from '../utils/routeUtils';
 import dotenv from 'dotenv';
+import { DistributeRouteRequest, DistributedRouteSegment, DistributeRouteResponse } from '../types/routes';
 
 dotenv.config();
 
@@ -484,9 +485,9 @@ router.get('/:teamId/optimized-route', async (req: Request, res: Response) => {
     });
 
     // 5. Calcular segmentos
-    const segments = route.legs.map((leg, index) => {
+    const segments = route.legs.slice(0, -1).map((leg, index) => {
       const fromLead = index === 0 ? 'Plaza España' : orderedLeads[index - 1].name;
-      const toLead = index === route.legs.length - 1 ? 'Plaza España' : orderedLeads[index].name;
+      const toLead = orderedLeads[index].name;
 
       return {
         from_lead_name: fromLead,
@@ -496,9 +497,9 @@ router.get('/:teamId/optimized-route', async (req: Request, res: Response) => {
       };
     });
 
-    // 6. Calcular totales
-    const totalDistance = route.legs.reduce((sum, leg) => sum + leg.distance.value, 0);
-    const totalDuration = route.legs.reduce((sum, leg) => sum + leg.duration.value, 0);
+    // 6. Calcular totales (sin incluir el último segmento)
+    const totalDistance = route.legs.slice(0, -1).reduce((sum, leg) => sum + leg.distance.value, 0);
+    const totalDuration = route.legs.slice(0, -1).reduce((sum, leg) => sum + leg.duration.value, 0);
 
     // Mostrar la ruta optimizada
     console.log('\n=== Ruta Optimizada ===');
@@ -508,8 +509,6 @@ router.get('/:teamId/optimized-route', async (req: Request, res: Response) => {
       console.log(`  ↓ ${segments[index].distance_km}km (${segments[index].duration_min}min)`);
       console.log(`${lead.name}`);
     });
-    console.log(`  ↓ ${segments[segments.length - 1].distance_km}km (${segments[segments.length - 1].duration_min}min)`);
-    console.log('Plaza España');
     console.log(`\nDistancia total: ${metersToKm(totalDistance)}km`);
     console.log(`Duración total: ${secondsToMinutes(totalDuration)}min`);
 
@@ -523,6 +522,39 @@ router.get('/:teamId/optimized-route', async (req: Request, res: Response) => {
       segments,
       polyline: route.overview_polyline.points
     };
+
+    // 7. Eliminar rutas anteriores del equipo
+    const { error: deleteError } = await supabase
+      .from('optimized_routes')
+      .delete()
+      .eq('team_id', teamId);
+
+    if (deleteError) {
+      console.error('Error al eliminar rutas anteriores:', deleteError);
+      throw new Error(`Error al eliminar rutas anteriores: ${deleteError.message}`);
+    }
+
+    // 8. Guardar la nueva ruta en la base de datos
+    const { data: savedRoute, error: saveError } = await supabase
+      .from('optimized_routes')
+      .insert({
+        team_id: teamId,
+        transport_mode: mode,
+        total_distance_km: metersToKm(totalDistance),
+        total_duration_min: secondsToMinutes(totalDuration),
+        waypoint_order: waypointOrder,
+        ordered_leads: orderedLeads,
+        segments,
+        polyline: route.overview_polyline.points,
+        created_at: new Date()
+      })
+      .select()
+      .single();
+
+    if (saveError || !savedRoute) {
+      console.error('Error al guardar la ruta optimizada:', saveError);
+      throw new Error(`Error al guardar la ruta optimizada: ${saveError?.message || 'No se pudo guardar la ruta'}`);
+    }
 
     return res.json(result);
   } catch (error) {
@@ -621,9 +653,9 @@ router.get('/:teamId/walking-route', async (req: Request, res: Response) => {
     });
 
     // 5. Calcular segmentos
-    const segments = route.legs.map((leg, index) => {
+    const segments = route.legs.slice(0, -1).map((leg, index) => {
       const fromLead = index === 0 ? 'Plaza España' : orderedLeads[index - 1].name;
-      const toLead = index === route.legs.length - 1 ? 'Plaza España' : orderedLeads[index].name;
+      const toLead = orderedLeads[index].name;
 
       return {
         from_lead_name: fromLead,
@@ -633,9 +665,9 @@ router.get('/:teamId/walking-route', async (req: Request, res: Response) => {
       };
     });
 
-    // 6. Calcular totales
-    const totalDistance = route.legs.reduce((sum, leg) => sum + leg.distance.value, 0);
-    const totalDuration = route.legs.reduce((sum, leg) => sum + leg.duration.value, 0);
+    // 6. Calcular totales (sin incluir el último segmento)
+    const totalDistance = route.legs.slice(0, -1).reduce((sum, leg) => sum + leg.distance.value, 0);
+    const totalDuration = route.legs.slice(0, -1).reduce((sum, leg) => sum + leg.duration.value, 0);
 
     // Mostrar la ruta optimizada
     console.log('\n=== Ruta Optimizada a Pie ===');
@@ -644,8 +676,6 @@ router.get('/:teamId/walking-route', async (req: Request, res: Response) => {
       console.log(`  ↓ ${segments[index].distance_km}km (${segments[index].duration_min}min)`);
       console.log(`${lead.name}`);
     });
-    console.log(`  ↓ ${segments[segments.length - 1].distance_km}km (${segments[segments.length - 1].duration_min}min)`);
-    console.log('Plaza España');
     console.log(`\nDistancia total: ${metersToKm(totalDistance)}km`);
     console.log(`Duración total: ${secondsToMinutes(totalDuration)}min`);
 
@@ -665,6 +695,285 @@ router.get('/:teamId/walking-route', async (req: Request, res: Response) => {
     console.error('\nError en walking-route:', error);
     return res.status(500).json({
       error: 'Error al calcular la ruta a pie',
+      details: error instanceof Error ? error.message : 'Error desconocido'
+    });
+  }
+});
+
+/**
+ * Distribuye la ruta optimizada de un equipo entre varios comerciales
+ * @route POST /api/teams/:teamId/distribute-route
+ */
+router.post('/:teamId/distribute-route', async (req: Request, res: Response) => {
+  try {
+    const { teamId } = req.params;
+    const { user_ids, num_commercials } = req.body as DistributeRouteRequest;
+
+    // Validar que el teamId sea un UUID válido
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(teamId)) {
+      return res.status(400).json({
+        error: 'ID de equipo inválido. Debe ser un UUID válido'
+      });
+    }
+
+    // Validar que se proporcione al menos una de las dos opciones
+    if (!user_ids && !num_commercials) {
+      return res.status(400).json({
+        error: 'Se debe proporcionar user_ids o num_commercials'
+      });
+    }
+
+    // Validar que no se proporcionen ambas opciones
+    if (user_ids && num_commercials) {
+      return res.status(400).json({
+        error: 'Solo se puede proporcionar user_ids o num_commercials, no ambos'
+      });
+    }
+
+    // Obtener la ruta optimizada más reciente del equipo
+    const { data: optimizedRoute, error: routeError } = await supabase
+      .from('optimized_routes')
+      .select('*')
+      .eq('team_id', teamId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (routeError || !optimizedRoute) {
+      return res.status(404).json({
+        error: 'No se encontró una ruta optimizada para este equipo. Primero debes generar una ruta usando GET /api/teams/:teamId/optimized-route'
+      });
+    }
+
+    // Calcular el número de comerciales
+    const numRoutes = user_ids ? user_ids.length : num_commercials!;
+
+    // Validar que hay suficientes leads para dividir
+    if (optimizedRoute.ordered_leads.length < numRoutes) {
+      return res.status(400).json({
+        error: `No hay suficientes leads para dividir entre ${numRoutes} comerciales`,
+        leads_count: optimizedRoute.ordered_leads.length,
+        requested_routes: numRoutes
+      });
+    }
+
+    // Si no se proporcionaron user_ids, obtener los primeros comerciales del equipo
+    let commercialIds = user_ids;
+    if (!commercialIds) {
+      const { data: teamMembers, error: membersError } = await supabase
+        .from('team_members')
+        .select('user_id')
+        .eq('team_id', teamId)
+        .order('joined_at', { ascending: true })
+        .limit(numRoutes);
+
+      if (membersError) {
+        throw membersError;
+      }
+
+      if (!teamMembers || teamMembers.length < numRoutes) {
+        return res.status(400).json({
+          error: `No hay suficientes comerciales en el equipo. Se requieren ${numRoutes} y solo hay ${teamMembers?.length || 0}`
+        });
+      }
+
+      commercialIds = teamMembers.map(member => member.user_id);
+    }
+
+    // Excluir el último segmento (vuelta al origen) para los cálculos
+    const segmentsWithoutReturn = optimizedRoute.segments.slice(0, -1);
+    const totalDurationWithoutReturn = segmentsWithoutReturn.reduce((sum: number, seg: { duration_min: number }) => sum + seg.duration_min, 0);
+
+    // Calcular el tiempo objetivo por ruta y la tolerancia
+    const targetTimePerRoute = totalDurationWithoutReturn / numRoutes;
+    const tolerance = targetTimePerRoute * 0.10; // 10% de tolerancia
+
+    // Dividir la ruta en segmentos
+    const distributedRoutes: DistributedRouteSegment[] = [];
+    let currentRouteIndex = 0;
+    let currentDuration = 0;
+    let startIndex = 0;
+
+    // Función para calcular la duración total de un rango de segmentos
+    const calculateDuration = (start: number, end: number): number => {
+      return segmentsWithoutReturn
+        .slice(start, end)
+        .reduce((sum: number, seg: { duration_min: number }) => sum + seg.duration_min, 0);
+    };
+
+    // Función para calcular la distancia total de un rango de segmentos
+    const calculateDistance = (start: number, end: number): number => {
+      return segmentsWithoutReturn
+        .slice(start, end)
+        .reduce((sum: number, seg: { distance_km: number }) => sum + seg.distance_km, 0);
+    };
+
+    // Iterar sobre cada segmento para encontrar los puntos de división óptimos
+    for (let i = 0; i < segmentsWithoutReturn.length; i++) {
+      currentDuration += segmentsWithoutReturn[i].duration_min;
+
+      // Si no es el último comercial
+      if (currentRouteIndex < numRoutes - 1) {
+        // Calcular tiempo y comerciales restantes
+        const remainingTime = totalDurationWithoutReturn - currentDuration;
+        const remainingCommercials = numRoutes - currentRouteIndex - 1;
+        const expectedPerRemaining = remainingTime / remainingCommercials;
+
+        // Evaluar si este es un buen punto de división
+        const timeDifference = Math.abs(currentDuration - targetTimePerRoute);
+        const nextTimeDifference = Math.abs((currentDuration + (segmentsWithoutReturn[i + 1]?.duration_min || 0)) - targetTimePerRoute);
+
+        // Decidir si cortar en este punto basado en múltiples criterios
+        const shouldCut = 
+          // Criterio 1: Estamos dentro de la tolerancia
+          timeDifference <= tolerance ||
+          // Criterio 2: Incluir el siguiente segmento empeoraría la distribución
+          (timeDifference <= nextTimeDifference && expectedPerRemaining >= targetTimePerRoute - tolerance) ||
+          // Criterio 3: Los comerciales restantes tendrían muy poco tiempo
+          expectedPerRemaining < targetTimePerRoute - tolerance;
+
+        if (shouldCut) {
+          // Crear la subruta actual
+          const routeSegments = segmentsWithoutReturn.slice(startIndex, i + 1);
+          const routeLeads = optimizedRoute.ordered_leads.slice(startIndex, i + 1);
+
+          distributedRoutes.push({
+            user_id: commercialIds![currentRouteIndex],
+            total_duration_min: calculateDuration(startIndex, i + 1),
+            total_distance_km: calculateDistance(startIndex, i + 1),
+            leads: routeLeads,
+            segments: routeSegments
+          });
+
+          // Preparar para la siguiente subruta
+          currentRouteIndex++;
+          startIndex = i + 1;
+          currentDuration = 0;
+        }
+      }
+    }
+
+    // Asignar los segmentos restantes al último comercial
+    if (startIndex < segmentsWithoutReturn.length) {
+      const routeSegments = segmentsWithoutReturn.slice(startIndex);
+      const routeLeads = optimizedRoute.ordered_leads.slice(startIndex);
+
+      distributedRoutes.push({
+        user_id: commercialIds![currentRouteIndex],
+        total_duration_min: calculateDuration(startIndex, segmentsWithoutReturn.length),
+        total_distance_km: calculateDistance(startIndex, segmentsWithoutReturn.length),
+        leads: routeLeads,
+        segments: routeSegments
+      });
+    }
+
+    // Guardar las rutas asignadas en la base de datos
+    const assignedRoutes = distributedRoutes.map(route => ({
+      user_id: route.user_id,
+      team_id: teamId,
+      assigned_date: new Date().toISOString().split('T')[0], // Formato YYYY-MM-DD
+      leads: route.leads,
+      total_duration_min: route.total_duration_min,
+      total_distance_km: route.total_distance_km,
+      created_at: new Date()
+    }));
+
+    // Verificar que la tabla assigned_routes existe
+    const { error: tableCheckError } = await supabase
+      .from('assigned_routes')
+      .select('id')
+      .limit(1);
+
+    if (tableCheckError) {
+      console.error('Error al verificar la tabla assigned_routes:', tableCheckError);
+      throw new Error(`Error al verificar la tabla assigned_routes: ${tableCheckError.message}`);
+    }
+
+    // Eliminar rutas asignadas anteriores para este equipo
+    const { error: deleteError } = await supabase
+      .from('assigned_routes')
+      .delete()
+      .eq('team_id', teamId);
+
+    if (deleteError) {
+      console.error('Error al eliminar rutas asignadas anteriores:', deleteError);
+      throw new Error(`Error al eliminar rutas asignadas anteriores: ${deleteError.message}`);
+    }
+
+    // Guardar las nuevas rutas asignadas
+    const { data: savedRoutes, error: saveError } = await supabase
+      .from('assigned_routes')
+      .insert(assignedRoutes)
+      .select();
+
+    if (saveError || !savedRoutes) {
+      console.error('Error al guardar las rutas asignadas:', saveError);
+      throw new Error(`Error al guardar las rutas asignadas: ${saveError?.message || 'No se pudieron guardar las rutas'}`);
+    }
+
+    const response: DistributeRouteResponse = {
+      team_id: teamId,
+      distributed_routes: distributedRoutes
+    };
+
+    return res.json(response);
+  } catch (error) {
+    console.error('Error al distribuir la ruta:', error);
+    return res.status(500).json({
+      error: 'Error al distribuir la ruta',
+      details: error instanceof Error ? error.message : 'Error desconocido'
+    });
+  }
+});
+
+/**
+ * Obtiene las rutas asignadas de un usuario específico
+ * @route GET /api/teams/assigned-routes/:userId
+ */
+router.get('/assigned-routes/:userId', async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+
+    // Validar que el userId sea un número
+    if (isNaN(Number(userId))) {
+      return res.status(400).json({
+        error: 'ID de usuario inválido. Debe ser un número'
+      });
+    }
+
+    // Obtener las rutas asignadas al usuario
+    const { data: assignedRoutes, error: routesError } = await supabase
+      .from('assigned_routes')
+      .select(`
+        *,
+        team:teams (
+          id,
+          name
+        )
+      `)
+      .eq('user_id', userId)
+      .order('assigned_date', { ascending: false });
+
+    if (routesError) {
+      throw routesError;
+    }
+
+    if (!assignedRoutes || assignedRoutes.length === 0) {
+      return res.status(404).json({
+        error: 'No se encontraron rutas asignadas para este usuario'
+      });
+    }
+
+    return res.json({
+      user_id: Number(userId),
+      assigned_routes: assignedRoutes
+    });
+
+  } catch (error) {
+    console.error('Error al obtener rutas asignadas:', error);
+    return res.status(500).json({
+      error: 'Error al obtener rutas asignadas',
       details: error instanceof Error ? error.message : 'Error desconocido'
     });
   }
