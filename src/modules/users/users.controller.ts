@@ -41,4 +41,24 @@ export class UsersController {
       res.status(500).json({ error: error.message });
     }
   }
+
+  static async updateUserSchedule(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const { schedule } = req.body;
+
+      if (!schedule) {
+        return res.status(400).json({ error: 'El horario es requerido' });
+      }
+
+      const user = await UsersService.updateUserSchedule(id, schedule);
+      res.json(user);
+    } catch (error: any) {
+      console.error('Error al actualizar horario:', error);
+      if (error.message === 'Usuario no encontrado') {
+        return res.status(404).json({ error: error.message });
+      }
+      res.status(500).json({ error: error.message });
+    }
+  }
 } 

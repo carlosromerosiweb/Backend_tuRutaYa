@@ -44,6 +44,80 @@ POST /auth/login
             }
         }
 
+#   AÑADIR HORARIO A UN USUARIO
+#   se acepta cualquier tipo de JSON, pero obviamente deberíamos seguir todo el rato el formato del ejemplo para evitar errores a futuro
+PATCH   /api/users/:userId/schedule
+    Body
+        {
+            "schedule": {
+                "monday": [
+                { "start": "09:00", "end": "13:30" },
+                { "start": "15:30", "end": "18:00" }
+                ],
+                "tuesday": [
+                { "start": "09:00", "end": "13:30" },
+                { "start": "15:30", "end": "18:00" }
+                ],
+                "wednesday": [],
+                "thursday": [
+                { "start": "10:00", "end": "14:00" }
+                ],
+                "friday": [
+                { "start": "09:00", "end": "12:00" }
+                ],
+                "saturday": [],
+                "sunday": []
+            }
+        }
+
+    Response
+        {
+            "id": 2,
+            "email": "hola@hola.com",
+            "name": "kojima",
+            "roles": [
+                "vendedor"
+            ],
+            "created_at": "2025-05-20T09:23:49.138859+00:00",
+            "schedule": {
+                "friday": [
+                    {
+                        "end": "12:00",
+                        "start": "09:00"
+                    }
+                ],
+                "monday": [
+                    {
+                        "end": "13:30",
+                        "start": "09:00"
+                    },
+                    {
+                        "end": "18:00",
+                        "start": "15:30"
+                    }
+                ],
+                "sunday": [],
+                "tuesday": [
+                    {
+                        "end": "13:30",
+                        "start": "09:00"
+                    },
+                    {
+                        "end": "18:00",
+                        "start": "15:30"
+                    }
+                ],
+                "saturday": [],
+                "thursday": [
+                    {
+                        "end": "14:00",
+                        "start": "10:00"
+                    }
+                ],
+                "wednesday": []
+            }
+        }
+
 #   OBTENER USUARIOS
 GET /api/users
     Response
@@ -100,14 +174,51 @@ GET /api/users/me
         }
 
 #   OBTENER USUARIO POR ID
-GET /api/users/3
+GET /api/users/:userId
     Response
         {
-            "id": 3,
-            "email": "asd@asd.com",
-            "name": "Oda",
+            "id": 2,
+            "email": "hola@hola.com",
+            "name": "kojima",
             "roles": [
-                "admin"
+                "vendedor"
             ],
-            "created_at": "2025-05-20T10:37:59.430156+00:00"
+            "created_at": "2025-05-20T09:23:49.138859+00:00",
+            "schedule": {
+                "friday": [
+                    {
+                        "end": "12:00",
+                        "start": "09:00"
+                    }
+                ],
+                "monday": [
+                    {
+                        "end": "13:30",
+                        "start": "09:00"
+                    },
+                    {
+                        "end": "18:00",
+                        "start": "15:30"
+                    }
+                ],
+                "sunday": [],
+                "tuesday": [
+                    {
+                        "end": "13:30",
+                        "start": "09:00"
+                    },
+                    {
+                        "end": "18:00",
+                        "start": "15:30"
+                    }
+                ],
+                "saturday": [],
+                "thursday": [
+                    {
+                        "end": "14:00",
+                        "start": "10:00"
+                    }
+                ],
+                "wednesday": []
+            }
         }
