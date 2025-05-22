@@ -27,3 +27,54 @@ POST /api/import/google
                 "campaign_id": "123e4567-e89b-12d3-a456-426614174000"
             }
         }
+
+#   LISTAR TODOS LOS LEADS
+GET /api/leads
+    Query Parameters
+        status (opcional): Filtro por estado del lead ('pendiente', 'visitado', 'reprogramado', 'cancelado')
+
+    Response
+        [
+            {
+                "id": "123e4567-e89b-12d3-a456-426614174000",
+                "name": "Peluquería Ejemplo",
+                "address": "Calle Ejemplo 123",
+                "location": "SRID=4326;POINT(-8.7207 42.2406)",
+                "place_id": "ChIJ...",
+                "sector": "peluquerías",
+                "campaign_id": "123e4567-e89b-12d3-a456-426614174000",
+                "status": "pendiente",
+                "priority": 3,
+                "notes": "Notas del lead",
+                "created_at": "2024-03-20T10:00:00Z",
+                "updated_at": "2024-03-20T10:00:00Z",
+                "assigned_team_id": "123e4567-e89b-12d3-a456-426614174000"
+            }
+        ]
+
+#   LISTAR LEADS POR EQUIPO
+GET /api/leads/team/:teamId
+    Path Parameters
+        teamId: ID del equipo
+
+    Query Parameters
+        status (opcional): Filtro por estado del lead ('pendiente', 'visitado', 'reprogramado', 'cancelado')
+
+    Response
+        [
+            {
+                "id": "123e4567-e89b-12d3-a456-426614174000",
+                "name": "Peluquería Ejemplo",
+                "address": "Calle Ejemplo 123",
+                "location": "SRID=4326;POINT(-8.7207 42.2406)",
+                "place_id": "ChIJ...",
+                "sector": "peluquerías",
+                "campaign_id": "123e4567-e89b-12d3-a456-426614174000",
+                "status": "pendiente",
+                "priority": 3,
+                "notes": "Notas del lead",
+                "created_at": "2024-03-20T10:00:00Z",
+                "updated_at": "2024-03-20T10:00:00Z",
+                "assigned_team_id": "123e4567-e89b-12d3-a456-426614174000"
+            }
+        ]

@@ -167,4 +167,84 @@ router.post('/import/google', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * Lista todos los leads con filtros opcionales
+ * @route GET /api/leads
+ * @query {string} status - Filtro opcional por estado
+ * @returns {Lead[]} Lista de leads
+ */
+router.get('/', async (req: Request, res: Response) => {
+  try {
+    const { status } = req.query;
+    
+    let query = supabase
+      .from('leads')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (status) {
+      query = query.eq('status', status);
+    }
+
+    const { data: leads, error } = await query;
+
+    if (error) throw error;
+
+    return res.json(leads);
+  } catch (error) {
+    console.error('Error al listar leads:', error);
+    return res.status(500).json({ 
+      error: 'Error interno del servidor',
+      details: error instanceof Error ? error.message : 'Error desconocido'
+    });
+  }
+});
+
+/**
+ * Lista leads por equipo
+ * @route GET /api/leads/team/:teamId
+ * @param {string} teamId - ID del equipo
+ * @query {string} status - Filtro opcional por estado
+ * @returns {Lead[]} Lista de leads asignados al equipo
+ */
+router.get('/team/:teamId', async (req: Request, res: Response) => {
+  try {
+    const { teamId } = req.params;
+    const { status } = req.query;
+
+    // Verificar que el equipo existe
+    const { data: team, error: teamError } = await supabase
+      .from('teams')
+      .select('id')
+      .eq('id', teamId)
+      .single();
+
+    if (teamError || !team) {
+      return res.status(404).json({ error: 'Equipo no encontrado' });
+    }
+
+    let query = supabase
+      .from('leads')
+      .select('*')
+      .eq('assigned_team_id', teamId)
+      .order('created_at', { ascending: false });
+
+    if (status) {
+      query = query.eq('status', status);
+    }
+
+    const { data: leads, error } = await query;
+
+    if (error) throw error;
+
+    return res.json(leads);
+  } catch (error) {
+    console.error('Error al listar leads del equipo:', error);
+    return res.status(500).json({ 
+      error: 'Error interno del servidor',
+      details: error instanceof Error ? error.message : 'Error desconocido'
+    });
+  }
+});
+
 export default router; 

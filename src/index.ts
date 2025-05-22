@@ -30,7 +30,7 @@ app.use(express.json());
 app.use('/auth', authModule.router);
 app.use('/ping', pingRouter);
 app.use('/api/users', usersModule.router);
-app.use('/api', leadsRouter);
+app.use('/api/leads', leadsRouter);
 app.use('/api/teams', teamsRouter);
 app.use('/api/checkins', checkinsRouter);
 app.use('/api/notifications', notificationsRouter);
