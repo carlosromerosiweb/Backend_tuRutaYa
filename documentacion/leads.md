@@ -1,5 +1,5 @@
 #   IMPORTAR LEADS DE GOOGLE
-POST /api/import/google
+POST /api/leads/import/google
     Body
         {
             "sector": "peluquerías",

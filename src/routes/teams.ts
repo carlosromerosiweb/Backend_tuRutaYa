@@ -5,6 +5,7 @@ import { OptimizedRouteResponse, GoogleDirectionsResponse } from '../types/route
 import { metersToKm, secondsToMinutes, formatWaypoint, extractCoordinates } from '../utils/routeUtils';
 import dotenv from 'dotenv';
 import { DistributeRouteRequest, DistributedRouteSegment, DistributeRouteResponse } from '../types/routes';
+import { CalculateCommercialsRequest, CalculateCommercialsResponse, EstimatedDistribution } from '../types/routes';
 
 dotenv.config();
 
@@ -974,6 +975,117 @@ router.get('/assigned-routes/:userId', async (req: Request, res: Response) => {
     console.error('Error al obtener rutas asignadas:', error);
     return res.status(500).json({
       error: 'Error al obtener rutas asignadas',
+      details: error instanceof Error ? error.message : 'Error desconocido'
+    });
+  }
+});
+
+/**
+ * Calcula el número óptimo de comerciales basado en un tiempo objetivo
+ * @route POST /api/teams/:teamId/calculate-commercials
+ */
+router.post('/:teamId/calculate-commercials', async (req: Request, res: Response) => {
+  try {
+    const { teamId } = req.params;
+    const { target_duration_min } = req.body as CalculateCommercialsRequest;
+
+    // Validar que el teamId sea un UUID válido
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(teamId)) {
+      return res.status(400).json({
+        error: 'ID de equipo inválido. Debe ser un UUID válido'
+      });
+    }
+
+    // Validar el tiempo objetivo
+    if (!target_duration_min || target_duration_min <= 0) {
+      return res.status(400).json({
+        error: 'El tiempo objetivo debe ser un número positivo'
+      });
+    }
+
+    // Obtener la ruta optimizada más reciente del equipo
+    const { data: optimizedRoute, error: routeError } = await supabase
+      .from('optimized_routes')
+      .select('*')
+      .eq('team_id', teamId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (routeError || !optimizedRoute) {
+      return res.status(404).json({
+        error: 'No se encontró una ruta optimizada para este equipo. Primero debes generar una ruta usando GET /api/teams/:teamId/optimized-route'
+      });
+    }
+
+    // Excluir el último segmento (vuelta al origen) para los cálculos
+    const segmentsWithoutReturn = optimizedRoute.segments.slice(0, -1);
+    const totalDurationWithoutReturn = segmentsWithoutReturn.reduce((sum: number, seg: { duration_min: number }) => sum + seg.duration_min, 0);
+
+    // Calcular el número recomendado de comerciales
+    const recommendedCommercials = Math.ceil(totalDurationWithoutReturn / target_duration_min);
+
+    // Si el número de comerciales es mayor que el número de leads, ajustar
+    if (recommendedCommercials > segmentsWithoutReturn.length) {
+      return res.status(400).json({
+        error: `No hay suficientes leads para dividir entre ${recommendedCommercials} comerciales`,
+        leads_count: segmentsWithoutReturn.length,
+        recommended_commercials: recommendedCommercials
+      });
+    }
+
+    // Calcular la distribución estimada
+    const estimatedDistribution: EstimatedDistribution[] = [];
+    const leadsPerCommercial = Math.floor(segmentsWithoutReturn.length / recommendedCommercials);
+    const remainingLeads = segmentsWithoutReturn.length % recommendedCommercials;
+
+    let currentIndex = 0;
+    for (let i = 0; i < recommendedCommercials; i++) {
+      const leadsForThisCommercial = leadsPerCommercial + (i < remainingLeads ? 1 : 0);
+      const startIndex = currentIndex;
+      const endIndex = startIndex + leadsForThisCommercial;
+      
+      const durationForThisCommercial = segmentsWithoutReturn
+        .slice(startIndex, endIndex)
+        .reduce((sum: number, seg: { duration_min: number }) => sum + seg.duration_min, 0);
+
+      estimatedDistribution.push({
+        commercial_number: i + 1,
+        estimated_duration_min: durationForThisCommercial,
+        estimated_leads: leadsForThisCommercial
+      });
+
+      currentIndex = endIndex;
+    }
+
+    // Calcular la calidad de la distribución
+    const deviations = estimatedDistribution.map(dist => 
+      Math.abs(dist.estimated_duration_min - target_duration_min)
+    );
+
+    const maxDeviation = Math.max(...deviations);
+    const avgDeviation = deviations.reduce((sum, dev) => sum + dev, 0) / deviations.length;
+    const isBalanced = maxDeviation <= target_duration_min * 0.2; // 20% de tolerancia
+
+    const response: CalculateCommercialsResponse = {
+      team_id: teamId,
+      total_duration_min: totalDurationWithoutReturn,
+      target_duration_min: target_duration_min,
+      recommended_commercials: recommendedCommercials,
+      estimated_distribution: estimatedDistribution,
+      distribution_quality: {
+        max_deviation_min: maxDeviation,
+        avg_deviation_min: avgDeviation,
+        is_balanced: isBalanced
+      }
+    };
+
+    return res.json(response);
+  } catch (error) {
+    console.error('Error al calcular el número de comerciales:', error);
+    return res.status(500).json({
+      error: 'Error al calcular el número de comerciales',
       details: error instanceof Error ? error.message : 'Error desconocido'
     });
   }

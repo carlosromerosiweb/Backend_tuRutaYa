@@ -58,4 +58,29 @@ export interface DistributedRouteSegment {
 export interface DistributeRouteResponse {
   team_id: string;
   distributed_routes: DistributedRouteSegment[];
+}
+
+export interface CalculateCommercialsRequest {
+  target_duration_min: number;
+}
+
+export interface EstimatedDistribution {
+  commercial_number: number;
+  estimated_duration_min: number;
+  estimated_leads: number;
+}
+
+export interface DistributionQuality {
+  max_deviation_min: number;
+  avg_deviation_min: number;
+  is_balanced: boolean;
+}
+
+export interface CalculateCommercialsResponse {
+  team_id: string;
+  total_duration_min: number;
+  target_duration_min: number;
+  recommended_commercials: number;
+  estimated_distribution: EstimatedDistribution[];
+  distribution_quality: DistributionQuality;
 } 

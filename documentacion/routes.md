@@ -271,3 +271,45 @@ GET /api/teams/assigned-routes/:userId
                 }
             ]
         }
+
+#   CALCULAR NÚMERO ÓPTIMO DE COMERCIALES
+POST /api/teams/:teamId/calculate-commercials
+    Body
+        {
+            "target_duration_min":15
+        }
+
+    Response
+       {
+            "team_id": "055430b9-b8ea-4476-aae5-102f87b98e4d",
+            "total_duration_min": 51,
+            "target_duration_min": 15,
+            "recommended_commercials": 4,
+            "estimated_distribution": [
+                {
+                    "commercial_number": 1,
+                    "estimated_duration_min": 14,
+                    "estimated_leads": 3
+                },
+                {
+                    "commercial_number": 2,
+                    "estimated_duration_min": 10,
+                    "estimated_leads": 3
+                },
+                {
+                    "commercial_number": 3,
+                    "estimated_duration_min": 16,
+                    "estimated_leads": 3
+                },
+                {
+                    "commercial_number": 4,
+                    "estimated_duration_min": 11,
+                    "estimated_leads": 2
+                }
+            ],
+            "distribution_quality": {
+                "max_deviation_min": 5,
+                "avg_deviation_min": 2.75,
+                "is_balanced": false
+            }
+        }
