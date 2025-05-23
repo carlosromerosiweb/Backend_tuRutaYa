@@ -3,18 +3,18 @@
 - Interfaz básica con logo, opción de inicio de sesión con Google y contraseña.
 - Acceso a distintas secciones según el rol del usuario.
 - Roles contemplados: vendedor, supervisor, jefe de equipo, jefe de zona, dirección y posibilidad de un rol regional o superusuario.
+- Selección de sectores (ej. bodegas de vino, peluquerías, centros de estética).
+- Definición de la zona geográfica (ciudad, provincia, región, nacional).
 
 
 
 # BACKEND
 - Gestión de perfiles: edición de datos personales y de la empresa (nombre, dirección, CIF).
 - La aplicación “tu ruta ya” optimiza las visitas comerciales mediante inteligencia artificial.     ???????????????????????????
-- Selección de sectores (ej. bodegas de vino, peluquerías, centros de estética).
-- Definición de la zona geográfica (ciudad, provincia, región, nacional).
+
 - Configuración del número de comerciales disponibles y visitas diarias estimadas.
 
 ### La IA calcula automáticamente:
-
 - Número de comerciales necesarios para cubrir una zona en un plazo determinado (ejemplo: Madrid dividido en zonas según la cantidad de negocios y comerciales).
 - Orden de visitas basándose en el punto de partida, aglomeración de clientes y distancia.
 - Ajustes en tiempo real: reprogramación de visitas si se cancela o pospone una cita, reorganización en función de la jornada laboral.

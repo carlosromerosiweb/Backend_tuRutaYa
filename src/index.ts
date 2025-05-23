@@ -8,6 +8,7 @@ import leadsRouter from './routes/leads';
 import teamsRouter from './routes/teams';
 import checkinsRouter from './routes/checkins';
 import notificationsRouter from './routes/notifications';
+import campaignsRouter from './routes/campaigns';
 
 dotenv.config();
 
@@ -34,6 +35,7 @@ app.use('/api/leads', leadsRouter);
 app.use('/api/teams', teamsRouter);
 app.use('/api/checkins', checkinsRouter);
 app.use('/api/notifications', notificationsRouter);
+app.use('/api/campaigns', campaignsRouter);
 
 // Error handling middleware
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
