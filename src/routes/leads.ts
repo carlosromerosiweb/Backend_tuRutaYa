@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import axios from 'axios';
 import { createClient } from '@supabase/supabase-js';
-import { ImportLeadsRequest, ImportLeadsResponse, GooglePlacesResponse, GooglePlaceDetailsResponse } from '../types/places';
+import { ImportLeadsRequest, ImportLeadsResponse, GooglePlacesResponse, GooglePlaceDetailsResponse, ImportLeadsByZoneRequest } from '../types/places';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -160,6 +160,121 @@ router.post('/import/google', async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error en import/google:', error);
+    return res.status(500).json({ 
+      error: 'Error interno del servidor',
+      details: error instanceof Error ? error.message : 'Error desconocido'
+    });
+  }
+});
+
+/**
+ * Importa leads desde Google Places API usando búsqueda por zona geográfica
+ * @route POST /api/leads/import/zone
+ * @param {ImportLeadsByZoneRequest} req.body - Datos de la importación
+ * @returns {ImportLeadsResponse} Estadísticas de la importación
+ */
+router.post('/import/zone', async (req: Request, res: Response) => {
+  try {
+    const { sector, zone_type, zone_name, limit, campaign_id }: ImportLeadsByZoneRequest = req.body;
+
+    // Validación de campos requeridos
+    if (!sector || !zone_type || !zone_name || !limit || !campaign_id) {
+      return res.status(400).json({ 
+        error: 'Faltan campos requeridos',
+        required: ['sector', 'zone_type', 'zone_name', 'limit', 'campaign_id']
+      });
+    }
+
+    // Validación de límites
+    if (limit > MAX_LIMIT) {
+      return res.status(400).json({
+        error: `El límite no puede ser mayor a ${MAX_LIMIT}`,
+        provided: limit,
+        maxAllowed: MAX_LIMIT
+      });
+    }
+
+    // Construir la query de búsqueda
+    const searchQuery = `${sector} in ${zone_name}`;
+
+    const response = await axios.get<GooglePlacesResponse>(
+      'https://maps.googleapis.com/maps/api/place/textsearch/json',
+      {
+        params: {
+          query: searchQuery,
+          key: process.env.GOOGLE_MAPS_API_KEY,
+        },
+      }
+    );
+
+    if (response.data.status !== 'OK' && response.data.status !== 'ZERO_RESULTS') {
+      return res.status(400).json({ 
+        error: 'Error en la búsqueda de Google Places',
+        status: response.data.status
+      });
+    }
+
+    const results = response.data.results.slice(0, limit);
+    const stats: ImportLeadsResponse = {
+      totalProcessed: results.length,
+      newLeads: 0,
+      duplicateLeads: 0,
+    };
+
+    for (const place of results) {
+      // Verificar si el lead ya existe
+      const { data: existingLead } = await supabase
+        .from('leads')
+        .select('place_id')
+        .eq('place_id', place.place_id)
+        .single();
+
+      if (existingLead) {
+        stats.duplicateLeads++;
+        continue;
+      }
+
+      // Obtener detalles adicionales del lugar
+      const details = await getPlaceDetails(place.place_id);
+
+      // Formatear la ubicación para PostGIS
+      const locationPoint = `SRID=4326;POINT(${place.geometry.location.lng} ${place.geometry.location.lat})`;
+
+      // Insertar nuevo lead
+      const { error } = await supabase.from('leads').insert({
+        name: place.name,
+        address: details.formattedAddress || place.vicinity || place.formatted_address || '',
+        location: locationPoint,
+        place_id: place.place_id,
+        sector,
+        campaign_id,
+        status: 'pendiente',
+        opening_hours: details.openingHours,
+        created_at: new Date(),
+        updated_at: new Date(),
+      });
+
+      if (error) {
+        console.error('Error al insertar lead:', error);
+        continue;
+      }
+
+      stats.newLeads++;
+    }
+
+    return res.json({
+      success: true,
+      ...stats,
+      metadata: {
+        sector,
+        zone_type,
+        zone_name,
+        limit,
+        campaign_id
+      }
+    });
+  } catch (error) {
+    console.error('Error en import/zone:', error);
     return res.status(500).json({ 
       error: 'Error interno del servidor',
       details: error instanceof Error ? error.message : 'Error desconocido'

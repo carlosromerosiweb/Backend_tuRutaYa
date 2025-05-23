@@ -46,6 +46,14 @@ export interface ImportLeadsResponse {
   duplicateLeads: number;
 }
 
+export interface ImportLeadsByZoneRequest {
+  sector: string;
+  zone_type: 'city' | 'province' | 'region' | 'national';
+  zone_name: string;
+  limit: number;
+  campaign_id: string;
+}
+
 export interface Lead {
   name: string;
   address: string;

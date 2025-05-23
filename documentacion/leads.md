@@ -28,6 +28,32 @@ POST /api/leads/import/google
             }
         }
 
+#   IMPORTAR LEADS DE GOOLE POR ZONA Y SECTOR
+POST /api/leads/import/zone
+    Body
+        {
+            "sector": "fruteria",
+            "zone_type": "city",
+            "zone_name": "Vigo",
+            "limit": 3,
+            "campaign_id": "123e4567-e89b-12d3-a456-426614174000"
+        }
+
+    Response
+        {
+            "success": true,
+            "totalProcessed": 3,
+            "newLeads": 3,
+            "duplicateLeads": 0,
+            "metadata": {
+                "sector": "fruteria",
+                "zone_type": "city",
+                "zone_name": "Vigo",
+                "limit": 3,
+                "campaign_id": "123e4567-e89b-12d3-a456-426614174000"
+            }
+        }
+
 #   LISTAR TODOS LOS LEADS
 GET /api/leads
     Query Parameters

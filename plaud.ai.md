@@ -1,21 +1,14 @@
-# Funcionalidades y Diseño de la Aplicación
-
-## Pantalla de inicio e ingreso
+# FRONTEND
 
 - Interfaz básica con logo, opción de inicio de sesión con Google y contraseña.
 - Acceso a distintas secciones según el rol del usuario.
-
-## Roles y Permisos
-
 - Roles contemplados: vendedor, supervisor, jefe de equipo, jefe de zona, dirección y posibilidad de un rol regional o superusuario.
+
+
+
+# BACKEND
 - Gestión de perfiles: edición de datos personales y de la empresa (nombre, dirección, CIF).
-
-## Generación y Optimización de Rutas con IA
-
-- La aplicación “tu ruta ya” optimiza las visitas comerciales mediante inteligencia artificial.
-
-### Parámetros de entrada para la generación de rutas:
-
+- La aplicación “tu ruta ya” optimiza las visitas comerciales mediante inteligencia artificial.     ???????????????????????????
 - Selección de sectores (ej. bodegas de vino, peluquerías, centros de estética).
 - Definición de la zona geográfica (ciudad, provincia, región, nacional).
 - Configuración del número de comerciales disponibles y visitas diarias estimadas.
