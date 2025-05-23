@@ -65,3 +65,91 @@ POST /api/campaigns/assign
                 "updated_at": "2025-05-23T11:36:51.724052+00:00"
             }
         }
+
+#   OBTENER CAMPAÑAS
+GET /api/campaigns
+    Response
+        {
+            "campaigns": [
+                {
+                    "id": "75de8ab2-685d-41df-a011-e3064c268440",
+                    "name": "Campaña Q1 2024",
+                    "description": "Campaña de ventas para el primer trimestre de 2024",
+                    "team_id": "055430b9-b8ea-4476-aae5-102f87b98e4d",
+                    "zones": [
+                        "Vigo"
+                    ],
+                    "sectors": [
+                        "peluqueria",
+                        "informatica"
+                    ],
+                    "start_date": "2024-01-01T00:00:00+00:00",
+                    "end_date": "2024-03-31T23:59:59+00:00",
+                    "status": "active",
+                    "created_at": "2025-05-23T11:36:51.724052+00:00",
+                    "updated_at": "2025-05-23T11:36:51.724052+00:00",
+                    "team": {
+                        "id": "055430b9-b8ea-4476-aae5-102f87b98e4d",
+                        "name": "Nombre del Equipo 3"
+                    }
+                }
+            ],
+            "total": 1
+        }
+
+#   OBTENER CAMPAÑA POR ID
+GET /api/campaigns/:campaignId
+    Response
+        {
+            "id": "75de8ab2-685d-41df-a011-e3064c268440",
+            "name": "Campaña Q1 2024",
+            "description": "Campaña de ventas para el primer trimestre de 2024",
+            "team_id": "055430b9-b8ea-4476-aae5-102f87b98e4d",
+            "zones": [
+                "Vigo"
+            ],
+            "sectors": [
+                "peluqueria",
+                "informatica"
+            ],
+            "start_date": "2024-01-01T00:00:00+00:00",
+            "end_date": "2024-03-31T23:59:59+00:00",
+            "status": "active",
+            "created_at": "2025-05-23T11:36:51.724052+00:00",
+            "updated_at": "2025-05-23T11:36:51.724052+00:00",
+            "team": {
+                "id": "055430b9-b8ea-4476-aae5-102f87b98e4d",
+                "name": "Nombre del Equipo 3"
+            }
+        }
+
+#   OBTENER CAMPAÑA POR EQUIPO
+GET /api/campaigns/team/:teamId
+    Response
+        {
+            "campaigns": [
+                {
+                    "id": "75de8ab2-685d-41df-a011-e3064c268440",
+                    "name": "Campaña Q1 2024",
+                    "description": "Campaña de ventas para el primer trimestre de 2024",
+                    "team_id": "055430b9-b8ea-4476-aae5-102f87b98e4d",
+                    "zones": [
+                        "Vigo"
+                    ],
+                    "sectors": [
+                        "peluqueria",
+                        "informatica"
+                    ],
+                    "start_date": "2024-01-01T00:00:00+00:00",
+                    "end_date": "2024-03-31T23:59:59+00:00",
+                    "status": "active",
+                    "created_at": "2025-05-23T11:36:51.724052+00:00",
+                    "updated_at": "2025-05-23T11:36:51.724052+00:00",
+                    "team": {
+                        "id": "055430b9-b8ea-4476-aae5-102f87b98e4d",
+                        "name": "Nombre del Equipo 3"
+                    }
+                }
+            ],
+            "total": 1
+        }

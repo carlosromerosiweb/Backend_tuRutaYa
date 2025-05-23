@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { supabase } from '../utils/supabaseClient';
-import { CreateCampaignRequest, AssignCampaignRequest } from '../types/campaigns';
+import { CreateCampaignRequest, AssignCampaignRequest, CampaignsResponse } from '../types/campaigns';
 
 const router = Router();
 
@@ -122,6 +122,127 @@ router.post('/assign', async (req: Request, res: Response) => {
         console.error('Error al asignar campaña:', error);
         return res.status(500).json({
             error: 'Error al asignar la campaña',
+            details: error instanceof Error ? error.message : 'Error desconocido'
+        });
+    }
+});
+
+// Obtener todas las campañas
+router.get('/', async (req: Request, res: Response) => {
+    try {
+        const { data: campaigns, error, count } = await supabase
+            .from('campaigns')
+            .select(`
+                *,
+                team:teams (
+                    id,
+                    name
+                )
+            `, { count: 'exact' })
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            throw error;
+        }
+
+        const response: CampaignsResponse = {
+            campaigns: campaigns || [],
+            total: count || 0
+        };
+
+        return res.json(response);
+
+    } catch (error) {
+        console.error('Error al obtener campañas:', error);
+        return res.status(500).json({
+            error: 'Error al obtener las campañas',
+            details: error instanceof Error ? error.message : 'Error desconocido'
+        });
+    }
+});
+
+// Obtener una campaña por ID
+router.get('/:id', async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+
+        const { data: campaign, error } = await supabase
+            .from('campaigns')
+            .select(`
+                *,
+                team:teams (
+                    id,
+                    name
+                )
+            `)
+            .eq('id', id)
+            .single();
+
+        if (error) {
+            if (error.code === 'PGRST116') {
+                return res.status(404).json({
+                    error: 'Campaña no encontrada'
+                });
+            }
+            throw error;
+        }
+
+        return res.json(campaign);
+
+    } catch (error) {
+        console.error('Error al obtener campaña:', error);
+        return res.status(500).json({
+            error: 'Error al obtener la campaña',
+            details: error instanceof Error ? error.message : 'Error desconocido'
+        });
+    }
+});
+
+// Obtener campañas por equipo
+router.get('/team/:teamId', async (req: Request, res: Response) => {
+    try {
+        const { teamId } = req.params;
+
+        // Verificar que el equipo existe
+        const { data: team, error: teamError } = await supabase
+            .from('teams')
+            .select('id')
+            .eq('id', teamId)
+            .single();
+
+        if (teamError || !team) {
+            return res.status(404).json({
+                error: 'El equipo especificado no existe'
+            });
+        }
+
+        const { data: campaigns, error, count } = await supabase
+            .from('campaigns')
+            .select(`
+                *,
+                team:teams (
+                    id,
+                    name
+                )
+            `, { count: 'exact' })
+            .eq('team_id', teamId)
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            throw error;
+        }
+
+        const response: CampaignsResponse = {
+            campaigns: campaigns || [],
+            total: count || 0
+        };
+
+        return res.json(response);
+
+    } catch (error) {
+        console.error('Error al obtener campañas del equipo:', error);
+        return res.status(500).json({
+            error: 'Error al obtener las campañas del equipo',
             details: error instanceof Error ? error.message : 'Error desconocido'
         });
     }
